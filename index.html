@@ -1293,8 +1293,8 @@ const DATA={
   },
   async saveUser(u){
     if(USE_CLOUD){
-      if(u.id){await SB.update('bzd_users',{id:u.id},u);return u;}
-      const cr=await SB.insert('bzd_users',{...u,username:u.user});return{...u,id:cr.id};
+      if(u.id){await SB.update('bzd_users',{id:u.id},{...u,username:u.user,password:u.pass});return u;}
+      const cr=await SB.insert('bzd_users',{...u,username:u.user,password:u.pass});return{...u,id:cr.id};
     }
     const users=LS.get('users')||[];
     const i=users.findIndex(x=>x.id===u.id);
