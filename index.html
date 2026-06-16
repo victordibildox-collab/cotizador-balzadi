@@ -3068,6 +3068,46 @@
   </div>
 
 
+  <!-- ACTIVIDAD (solo admin) -->
+  <div class="pnl" id="pnl-act">
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span>📜 Registro de actividad</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-az" onclick="exportarActividad()" style="font-size:12px">⬇ CSV</button>
+          <button class="btn btn-n" onclick="renderActividad()" style="font-size:12px">↻ Actualizar</button>
+        </div>
+      </div>
+      <div id="act-cloud-warn" style="display:none;background:#FFF3CD;border:1.5px solid #FFC107;border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:12px">
+        ⚠️ <strong>Supabase no configurado</strong> — El registro de actividad requiere Supabase. En modo local no se guarda historial.
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
+        <div class="fl" style="margin:0;min-width:160px"><label>Usuario</label>
+          <select id="act-fil-user" onchange="renderActividad()" style="font-size:13px">
+            <option value="">— Todos —</option>
+          </select>
+        </div>
+        <div class="fl" style="margin:0"><label>Desde</label>
+          <input type="date" id="act-fil-desde" onchange="renderActividad()" style="font-size:13px;padding:7px 10px;border:1.5px solid var(--GB);border-radius:6px;font-family:inherit">
+        </div>
+        <div class="fl" style="margin:0"><label>Hasta</label>
+          <input type="date" id="act-fil-hasta" onchange="renderActividad()" style="font-size:13px;padding:7px 10px;border:1.5px solid var(--GB);border-radius:6px;font-family:inherit">
+        </div>
+        <div class="fl" style="margin:0;min-width:180px"><label>Acción</label>
+          <select id="act-fil-tipo" onchange="renderActividad()" style="font-size:13px">
+            <option value="">— Todas —</option>
+            <option value="sesión">Sesión</option>
+            <option value="cotización">Cotizaciones</option>
+            <option value="precio">Precios / MP</option>
+            <option value="usuario">Usuarios</option>
+            <option value="cliente">Clientes</option>
+          </select>
+        </div>
+      </div>
+      <div id="act-lista"></div>
+    </div>
+  </div>
+
   <!-- MODAL CATÁLOGO -->
   <div class="modal-bg" id="modal-cli-pick" onclick="if(event.target===this)cerrarModal('modal-cli-pick')">
     <div class="modal" style="max-width:480px;max-height:80vh;display:flex;flex-direction:column">
@@ -3386,6 +3426,24 @@
       async deleteCliente(id) {
         const list = (await this.getClientes()).filter(c => c.id !== id);
         await this.setConfig('clientes', list);
+      },
+      async logAct(accion, detalle='') {
+        if (!USE_CLOUD || !SESSION) return;
+        try {
+          await SB.insert('bzd_actividad', {
+            usuario: SESSION.user || SESSION.username || '',
+            nombre: SESSION.nombre || '',
+            accion, detalle
+          });
+        } catch(e) { console.warn('logAct silenciado:', e.message); }
+      },
+      async getActividad() {
+        if (!USE_CLOUD) return [];
+        try {
+          const r = await fetch(SUPABASE_URL + '/rest/v1/bzd_actividad?order=created_at.desc&limit=500', { headers: SB.h });
+          if (!r.ok) throw new Error(await r.text());
+          return r.json();
+        } catch(e) { console.error('getActividad:', e); return []; }
       }
     };
 
@@ -3511,10 +3569,12 @@
         document.getElementById('tb-role').textContent = { admin: 'Administrador', vendedor: 'Vendedor', produccion: 'Producción' }[found.rol] || found.rol;
         buildNav();
         await cargarMP(); cargarMrg(); actualizarPreciosPel(); irTab('dash');
+        DATA.logAct('Inicio de sesión', 'Rol: ' + found.rol);
       } catch (e) { notif('Error de conexión', '#C0392B'); console.error(e); }
     }
     document.getElementById('l-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
     function doLogout() {
+      DATA.logAct('Cierre de sesión', '');
       SESSION = null;
       document.getElementById('app').classList.remove('visible');
       document.getElementById('login-screen').style.display = 'flex';
@@ -3522,7 +3582,7 @@
       document.getElementById('login-err').style.display = 'none';
     }
     // ===== NAV =====
-    const TABS_ADMIN = [{ id: 'dash', lbl: 'Dashboard', ico: '📊' }, { id: 'cot', lbl: 'Nueva cotización', ico: '✏️' }, { id: 'mis', lbl: 'Cotizaciones', ico: '📋' }, { id: 'clientes', lbl: 'Clientes', ico: '📇' }, { id: 'prod', lbl: 'Producción', ico: '🏭' }, { id: 'users', lbl: 'Usuarios', ico: '👥' }, { id: 'mp', lbl: 'Materias primas', ico: '🔧' }, { id: 'mrg', lbl: 'Márgenes', ico: '📈' }];
+    const TABS_ADMIN = [{ id: 'dash', lbl: 'Dashboard', ico: '📊' }, { id: 'cot', lbl: 'Nueva cotización', ico: '✏️' }, { id: 'mis', lbl: 'Cotizaciones', ico: '📋' }, { id: 'clientes', lbl: 'Clientes', ico: '📇' }, { id: 'prod', lbl: 'Producción', ico: '🏭' }, { id: 'users', lbl: 'Usuarios', ico: '👥' }, { id: 'mp', lbl: 'Materias primas', ico: '🔧' }, { id: 'mrg', lbl: 'Márgenes', ico: '📈' }, { id: 'act', lbl: 'Actividad', ico: '📜' }];
     const TABS_VEND = [{ id: 'dash', lbl: 'Dashboard', ico: '📊' }, { id: 'cot', lbl: 'Nueva cotización', ico: '✏️' }, { id: 'mis', lbl: 'Mis cotizaciones', ico: '📋' }, { id: 'clientes', lbl: 'Clientes', ico: '📇' }];
     const TABS_PROD = [{ id: 'prod', lbl: 'Órdenes producción', ico: '🏭' }];
     function buildNav() {
@@ -3539,6 +3599,7 @@
       if (id === 'prod') renderProd();
       if (id === 'users') renderUsers();
       if (id === 'clientes') renderClientes();
+      if (id === 'act') renderActividad();
     }
 
     // ===== UTILS =====
@@ -4151,6 +4212,7 @@
           vendedor: SESSION.id, vendedor_id: SESSION.id, vendedorNombre: SESSION.nombre
         };
         await DATA.saveCot(cot); limpiarCot();
+        DATA.logAct('Nueva cotización', folio + ' — ' + (cot.cliente?.nombre || '') + ' — $' + cot.total.toLocaleString('es-MX', {maximumFractionDigits:0}));
         notif('Cotización ' + folio + ' guardada ✓', '#1A7A3F'); irTab('mis');
       } catch (e) { notif('Error al guardar: ' + e.message, '#C0392B'); console.error(e); }
     }
@@ -4278,7 +4340,12 @@
     }
     async function eliminarCot(id) {
       if (!confirm('¿Eliminar esta cotización?')) return;
-      try { await DATA.deleteCot(id); renderMisCots(); notif('Eliminada'); }
+      try {
+        const cDel = await DATA.getCot(id);
+        await DATA.deleteCot(id); renderMisCots();
+        DATA.logAct('Cotización eliminada', (cDel?.folio || id) + ' — ' + (cDel?.cliente?.nombre || ''));
+        notif('Eliminada');
+      }
       catch (e) { notif('Error: ' + e.message, '#C0392B'); }
     }
     async function verCot(id) {
@@ -4351,6 +4418,78 @@
       }
     }
 
+    // ===== ACTIVIDAD =====
+    async function renderActividad() {
+      const lista = document.getElementById('act-lista');
+      const warnEl = document.getElementById('act-cloud-warn');
+      if (!USE_CLOUD) { if(warnEl) warnEl.style.display='block'; if(lista) lista.innerHTML=''; return; }
+      if(warnEl) warnEl.style.display='none';
+      lista.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Cargando…</div>';
+      const rows = await DATA.getActividad();
+      // Llenar selector de usuarios
+      const userSel = document.getElementById('act-fil-user');
+      const usuariosUnicos = [...new Set(rows.map(r => r.usuario).filter(Boolean))];
+      const curUser = userSel.value;
+      userSel.innerHTML = '<option value="">— Todos —</option>' + usuariosUnicos.map(u => `<option value="${u}"${curUser===u?' selected':''}>${u}</option>`).join('');
+      // Aplicar filtros
+      const filUser = document.getElementById('act-fil-user').value;
+      const filDesde = document.getElementById('act-fil-desde').value;
+      const filHasta = document.getElementById('act-fil-hasta').value;
+      const filTipo = document.getElementById('act-fil-tipo').value.toLowerCase();
+      const filtrados = rows.filter(r => {
+        if (filUser && r.usuario !== filUser) return false;
+        const fecha = r.created_at ? r.created_at.slice(0,10) : '';
+        if (filDesde && fecha < filDesde) return false;
+        if (filHasta && fecha > filHasta) return false;
+        if (filTipo && !(r.accion||'').toLowerCase().includes(filTipo)) return false;
+        return true;
+      });
+      if (!filtrados.length) { lista.innerHTML = '<div style="padding:24px;text-align:center;color:#bbb">Sin registros para los filtros seleccionados</div>'; return; }
+      const iconos = {'Inicio de sesión':'🔑','Cierre de sesión':'🚪','Nueva cotización':'📄','Cotización eliminada':'🗑','Cotización actualizada':'✏️','Precios actualizados':'💰','Márgenes actualizados':'📈','Usuario creado':'👤','Usuario editado':'✏️','Usuario eliminado':'🗑','Cliente creado':'📇','Cliente eliminado':'🗑'};
+      lista.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead><tr style="background:var(--GF);border-bottom:2px solid var(--GB)">
+          <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--GM);font-weight:600;white-space:nowrap">Fecha y hora</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--GM);font-weight:600">Usuario</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--GM);font-weight:600">Acción</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--GM);font-weight:600">Detalle</th>
+        </tr></thead>
+        <tbody>${filtrados.map((r,i) => {
+          const dt = r.created_at ? new Date(r.created_at) : null;
+          const fecha = dt ? dt.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
+          const hora = dt ? dt.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
+          const ico = iconos[r.accion] || '•';
+          return `<tr style="border-bottom:1px solid var(--GB);background:${i%2===0?'#fff':'#fafafa'}">
+            <td style="padding:7px 12px;white-space:nowrap;font-family:'DM Mono',monospace;font-size:11.5px;color:var(--GM)">${fecha}<br><span style="color:#aaa;font-size:10.5px">${hora}</span></td>
+            <td style="padding:7px 12px"><span style="font-weight:600;color:var(--N)">${r.nombre||''}</span><br><span style="font-size:10.5px;color:#aaa">${r.usuario||''}</span></td>
+            <td style="padding:7px 12px;white-space:nowrap">${ico} ${r.accion||''}</td>
+            <td style="padding:7px 12px;color:var(--GM);font-size:12px">${r.detalle||''}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+      <div style="margin-top:8px;font-size:11px;color:#aaa;text-align:right">${filtrados.length} registros mostrados${rows.length>filtrados.length?' de '+rows.length+' totales':''}</div>`;
+    }
+    function exportarActividad() {
+      DATA.getActividad().then(rows => {
+        if (!rows.length) { notif('Sin datos para exportar', '#C0392B'); return; }
+        const csv = ['Fecha,Hora,Usuario,Nombre,Acción,Detalle',
+          ...rows.map(r => {
+            const dt = r.created_at ? new Date(r.created_at) : null;
+            return [
+              dt ? dt.toLocaleDateString('es-MX') : '',
+              dt ? dt.toLocaleTimeString('es-MX') : '',
+              '"'+(r.usuario||'').replace(/"/g,'""')+'"',
+              '"'+(r.nombre||'').replace(/"/g,'""')+'"',
+              '"'+(r.accion||'').replace(/"/g,'""')+'"',
+              '"'+(r.detalle||'').replace(/"/g,'""')+'"'
+            ].join(',');
+          })].join('\n');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob(['﻿'+csv], { type: 'text/csv;charset=utf-8' }));
+        a.download = 'actividad_balzadi_' + new Date().toISOString().slice(0,10) + '.csv';
+        a.click(); notif('CSV exportado ✓');
+      });
+    }
+
     // ===== USUARIOS =====
     async function renderUsers() {
       try {
@@ -4412,6 +4551,7 @@
         if (!verify) { notif('Error: el usuario no se pudo verificar después de guardar', '#C0392B'); return; }
         cerrarModal('modal-user');
         renderUsers();
+        DATA.logAct(editId ? 'Usuario editado' : 'Usuario creado', user + ' (' + rol + ')');
         notif((editId ? 'Usuario actualizado ✓' : 'Usuario creado ✓') + ' — login: ' + user, '#1A7A3F');
       } catch (e) {
         console.error('guardarUsuario error:', e);
@@ -4420,7 +4560,7 @@
     }
     async function eliminarUser(id) {
       if (!confirm('¿Eliminar usuario?')) return;
-      try { await DATA.deleteUser(id); renderUsers(); notif('Usuario eliminado'); }
+      try { await DATA.deleteUser(id); renderUsers(); DATA.logAct('Usuario eliminado', 'id: ' + id); notif('Usuario eliminado'); }
       catch (e) { notif('Error: ' + e.message, '#C0392B'); }
     }
 
@@ -4447,7 +4587,7 @@
       CATALOGO_BDV.forEach(p => ids.push(dvPKey(p.id)));
       const mp = {}; ids.forEach(id => { const el = document.getElementById(id); if (el) mp[id] = parseFloat(el.value) || 0; });
       if (!USE_CLOUD) { notif('⚠️ Supabase no configurado — guardado solo en este navegador', '#E67E22'); await DATA.setConfig('mp', mp); return; }
-      try { await DATA.setConfig('mp', mp); notif('Materias primas guardadas ✓ (Supabase)', '#1A7A3F'); }
+      try { await DATA.setConfig('mp', mp); DATA.logAct('Precios actualizados', 'Materias primas y soportes'); notif('Materias primas guardadas ✓ (Supabase)', '#1A7A3F'); }
       catch (e) { console.error('guardarMP:', e); notif('Error Supabase al guardar MP: ' + e.message, '#C0392B'); }
     }
     function cargarMrg() {
@@ -4457,7 +4597,7 @@
       });
     }
     async function guardarMrg() {
-      try { await DATA.setConfig('mrg', { priv: gn('mrg_priv'), gob: gn('mrg_gob'), dir: gn('mrg_dir') }); notif('Márgenes guardados ✓'); }
+      try { await DATA.setConfig('mrg', { priv: gn('mrg_priv'), gob: gn('mrg_gob'), dir: gn('mrg_dir') }); DATA.logAct('Márgenes actualizados', 'Priv:'+gn('mrg_priv')+'% Gob:'+gn('mrg_gob')+'% Dir:'+gn('mrg_dir')+'%'); notif('Márgenes guardados ✓'); }
       catch (e) { notif('Error: ' + e.message, '#C0392B'); }
     }
     function exportarMP() {
