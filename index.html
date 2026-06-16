@@ -2391,8 +2391,9 @@ async function guardarMP(){
   if(SESSION.rol!=='admin'){notif('Solo el administrador puede modificar precios','#C0392B');return;}
   const ids=['mp_lam14','mp_pelGI','mp_pelA','mp_pelB','mp_pelBF','mp_mo_pct','mp_oh','mp_inst','mp_ag','mp_oreja',
     'mp_merma_lam','mp_merma_ref','cua_pers','cua_pers_dia','cua_cam_mes','cua_dias_mes','cua_comb','cua_cons','cua_viat',
-    'p_ang2_3','p_ang2_6','p_ang2p_3','p_ang2p_6','p_ang3_3','p_ang3_6','p_tub14_3','p_tub14_6',
-    'p_tub12_3','p_tub12_6','p_bandera','p_puente','t_ang2_s','t_ang2_g','t_ang3','t_tub_s','t_tub_g','t_ban',
+    'p_ang2_14','p_ang2_316','p_ang25_14','p_ang25_316','p_ang3_14','p_ang35_14','p_ang4_14',
+    'p_ptr1h_14','p_ptr2_14','p_ptr2_12','p_ptr2h_12','p_ptr2h_14','p_ptr3_14','p_ptr4_11','p_ptr4_14p',
+    'p_bandera','p_puente','t_ang2_s','t_ang2_g','t_ang3','t_tub_s','t_tub_g','t_ban',
     't_av_ang','t_av_tub','mp_vinil_negro','mp_electrocut_rojo','mp_electrocut_verde','mp_electrocut_azul','mp_electrocut_cafe','mp_transfer','sh_pba','sh_pbc','sh_pad','sh_ptp','sh_pme'];
   const mp={};ids.forEach(id=>{const el=document.getElementById(id);if(el)mp[id]=parseFloat(el.value)||0;});
   try{await DATA.setConfig('mp',mp);notif('Materias primas guardadas ✓','#1A7A3F');}
