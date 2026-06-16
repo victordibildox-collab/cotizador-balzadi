@@ -342,7 +342,10 @@ tbody td{padding:7px 10px;vertical-align:middle}
 
       <!-- Datos cliente + proyecto -->
       <div class="card" style="padding:12px 14px;margin-bottom:8px">
-        <div style="font-size:10.5px;font-weight:700;color:var(--GM);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Datos del cliente</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:10.5px;font-weight:700;color:var(--GM);text-transform:uppercase;letter-spacing:.05em">Datos del cliente</div>
+          <button type="button" onclick="abrirPickerCliente()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1.5px solid var(--AZ);background:#EFF6FF;color:var(--AZ);font-weight:600;cursor:pointer;font-family:inherit">📇 Seleccionar cliente</button>
+        </div>
         <div style="display:flex;flex-direction:column;gap:7px">
           <div class="fl" style="margin:0"><label style="font-size:10.5px">Nombre / Razón social</label><input id="c-cn" placeholder="Municipio / Empresa ABC"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
@@ -361,15 +364,25 @@ tbody td{padding:7px 10px;vertical-align:middle}
                 <option value="15">15 días</option><option value="30" selected>30 días</option><option value="45">45 días</option><option value="60">60 días</option>
               </select>
             </div>
-            <div class="fl" style="margin:0"><label style="font-size:10.5px">Forma de pago</label>
-              <select id="c-pago" style="border:1.5px solid var(--GB);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;font-family:inherit">
-                <option value="5050">50% anticipo / 50% entrega</option>
-                <option value="100a">100% anticipo</option>
-                <option value="c30">Crédito 30 días</option>
-                <option value="c60">Crédito 60 días</option>
+            <div class="fl" style="margin:0"><label style="font-size:10.5px">Libre abordo (LAB)</label>
+              <select id="c-lab" style="border:1.5px solid var(--GB);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;font-family:inherit">
+                <option value="balzadi">LAB Balzadi</option>
+                <option value="obra">LAB en obra</option>
+                <option value="paqueteria">LAB en paquetería de su elección</option>
               </select>
             </div>
           </div>
+          <div class="fl" style="margin:0"><label style="font-size:10.5px">Forma de pago</label>
+              <select id="c-pago" style="border:1.5px solid var(--GB);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;font-family:inherit">
+                <option value="contado">Contado</option>
+                <option value="5050">50% de anticipo y 50% restante contra entrega</option>
+                <option value="5050est">50% de anticipo y resto contra estimaciones semanales</option>
+                <option value="6040">60% de anticipo y 40% contra entrega</option>
+                <option value="6040est">60% de anticipo y 40% contra estimaciones semanales</option>
+                <option value="c15">Crédito a 15 días</option>
+                <option value="c30">Crédito a 30 días</option>
+              </select>
+            </div>
           <div class="fl" style="margin:0"><label style="font-size:10.5px">Instalación incluida</label>
             <select id="c-inst" style="border:1.5px solid var(--GB);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;font-family:inherit">
               <option value="no">No incluye instalación</option>
@@ -1148,11 +1161,70 @@ tbody td{padding:7px 10px;vertical-align:middle}
       </div>
     </div>
 
+    <!-- ===== PANEL CLIENTES ===== -->
+    <div class="pnl" id="pnl-clientes">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+          <div class="card-title" style="margin:0">📇 Clientes</div>
+          <button class="btn btn-n" onclick="abrirFormCliente(null)">+ Nuevo cliente</button>
+        </div>
+        <input id="cli-bus" placeholder="🔍 Buscar por nombre, empresa, correo…"
+          style="width:100%;border:1.5px solid var(--GB);border-radius:6px;padding:8px 12px;font-size:13px;outline:none;font-family:inherit;box-sizing:border-box;margin-bottom:12px"
+          oninput="renderClientes()">
+        <div id="cli-lista" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <!-- Formulario nuevo/editar cliente -->
+      <div id="cli-form-wrap" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:none;align-items:center;justify-content:center">
+        <div style="background:#fff;border-radius:12px;padding:24px;width:min(480px,95vw);box-shadow:0 8px 32px rgba(0,0,0,.18)">
+          <div style="font-size:14px;font-weight:700;color:var(--N);margin-bottom:16px" id="cli-form-titulo">Nuevo cliente</div>
+          <input type="hidden" id="cli-form-id">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="fl" style="margin:0"><label>Nombre / Razón social *</label><input id="cli-form-nombre" placeholder="Municipio de Soledad / Empresa XYZ"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div class="fl" style="margin:0"><label>Contacto</label><input id="cli-form-contacto" placeholder="Ing. Pérez"></div>
+              <div class="fl" style="margin:0"><label>Teléfono</label><input id="cli-form-tel" placeholder="444-xxx-xxxx"></div>
+            </div>
+            <div class="fl" style="margin:0"><label>Correo electrónico</label><input id="cli-form-email" type="email" placeholder="contacto@empresa.com"></div>
+            <div class="fl" style="margin:0"><label>Tipo de cliente</label>
+              <select id="cli-form-tipo" style="border:1.5px solid var(--GB);border-radius:6px;padding:7px 10px;font-size:13px;outline:none;font-family:inherit">
+                <option value="priv">Privado</option>
+                <option value="gob">Gobierno / licitación</option>
+                <option value="dir">Trato directo</option>
+              </select>
+            </div>
+            <div class="fl" style="margin:0"><label>Notas</label><input id="cli-form-notas" placeholder="RFC, dirección, observaciones…"></div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+            <button class="btn" style="background:#f1f1f1;color:#444" onclick="cerrarFormCliente()">Cancelar</button>
+            <button class="btn btn-n" onclick="guardarCliente()">Guardar cliente</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 
 <!-- MODAL CATÁLOGO -->
+<div class="modal-bg" id="modal-cli-pick" onclick="if(event.target===this)cerrarModal('modal-cli-pick')">
+  <div class="modal" style="max-width:480px;max-height:80vh;display:flex;flex-direction:column">
+    <div class="modal-title">
+      <span>📇 Seleccionar cliente</span>
+      <button class="modal-close" onclick="cerrarModal('modal-cli-pick')">×</button>
+    </div>
+    <input id="cli-pick-bus" placeholder="Buscar cliente…"
+      style="border:1.5px solid var(--GB);border-radius:6px;padding:8px 12px;font-size:13px;outline:none;font-family:inherit;margin-bottom:10px"
+      oninput="renderPickerClientes(this.value)">
+    <div id="cli-pick-lista" style="overflow-y:auto;flex:1;border:1.5px solid var(--GB);border-radius:8px"></div>
+    <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+      <button class="btn" style="font-size:11px;background:#F3F4F6;color:#444" onclick="irTab('clientes');cerrarModal('modal-cli-pick')">+ Gestionar clientes</button>
+      <button class="btn" style="background:#f1f1f1;color:#666" onclick="cerrarModal('modal-cli-pick')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-catalogo">
   <div class="modal" style="max-width:720px;max-height:85vh;display:flex;flex-direction:column">
     <div class="modal-title">
@@ -1413,6 +1485,19 @@ const DATA={
       const c=r[0];c.partidas=typeof c.partidas==='string'?JSON.parse(c.partidas):(c.partidas||[]);return c;
     }
     return(LS.get('cotizaciones')||[]).find(c=>c.id===id)||null;
+  },
+  async getClientes(){
+    const r=await this.getConfig('clientes');return r||[];
+  },
+  async saveCliente(c){
+    const list=await this.getClientes();
+    if(c.id){const i=list.findIndex(x=>x.id===c.id);if(i>=0)list[i]=c;else list.unshift(c);}
+    else{c.id='cli'+Date.now();list.unshift(c);}
+    await this.setConfig('clientes',list);return c;
+  },
+  async deleteCliente(id){
+    const list=(await this.getClientes()).filter(c=>c.id!==id);
+    await this.setConfig('clientes',list);
   }
 };
 
@@ -1549,8 +1634,8 @@ function doLogout(){
   document.getElementById('login-err').style.display='none';
 }
 // ===== NAV =====
-const TABS_ADMIN=[{id:'dash',lbl:'Dashboard',ico:'📊'},{id:'cot',lbl:'Nueva cotización',ico:'✏️'},{id:'mis',lbl:'Cotizaciones',ico:'📋'},{id:'prod',lbl:'Producción',ico:'🏭'},{id:'users',lbl:'Usuarios',ico:'👥'},{id:'mp',lbl:'Materias primas',ico:'🔧'},{id:'mrg',lbl:'Márgenes',ico:'📈'}];
-const TABS_VEND=[{id:'dash',lbl:'Dashboard',ico:'📊'},{id:'cot',lbl:'Nueva cotización',ico:'✏️'},{id:'mis',lbl:'Mis cotizaciones',ico:'📋'}];
+const TABS_ADMIN=[{id:'dash',lbl:'Dashboard',ico:'📊'},{id:'cot',lbl:'Nueva cotización',ico:'✏️'},{id:'mis',lbl:'Cotizaciones',ico:'📋'},{id:'clientes',lbl:'Clientes',ico:'📇'},{id:'prod',lbl:'Producción',ico:'🏭'},{id:'users',lbl:'Usuarios',ico:'👥'},{id:'mp',lbl:'Materias primas',ico:'🔧'},{id:'mrg',lbl:'Márgenes',ico:'📈'}];
+const TABS_VEND=[{id:'dash',lbl:'Dashboard',ico:'📊'},{id:'cot',lbl:'Nueva cotización',ico:'✏️'},{id:'mis',lbl:'Mis cotizaciones',ico:'📋'},{id:'clientes',lbl:'Clientes',ico:'📇'}];
 const TABS_PROD=[{id:'prod',lbl:'Órdenes producción',ico:'🏭'}];
 function buildNav(){
   const tabs=SESSION.rol==='admin'?TABS_ADMIN:SESSION.rol==='vendedor'?TABS_VEND:TABS_PROD;
@@ -1565,6 +1650,7 @@ function irTab(id){
   if(id==='mis')renderMisCots();
   if(id==='prod')renderProd();
   if(id==='users')renderUsers();
+  if(id==='clientes')renderClientes();
 }
 
 // ===== UTILS =====
@@ -2159,7 +2245,7 @@ async function guardarCot(){
     const sub=partidas.reduce((s,p)=>s+p.importe,0);
     const cot={id:'cot_'+Date.now(),folio,fecha:new Date().toISOString(),
       cliente:{nombre:gv('c-cn'),contacto:gv('c-cc'),tel:gv('c-ctel'),email:gv('c-ce')},
-      obra:gv('c-obra'),ubi:gv('c-ubi'),vigencia:gv('c-vig'),pago:gv('c-pago'),
+      obra:gv('c-obra'),ubi:gv('c-ubi'),vigencia:gv('c-vig'),pago:gv('c-pago'),lab:gv('c-lab'),
       inst:gv('c-inst'),obs:gv('c-obs'),partidas:[...partidas],
       sub,iva:sub*.16,total:sub*1.16,estado:'pendiente',
       vendedor:SESSION.id,vendedor_id:SESSION.id,vendedorNombre:SESSION.nombre};
@@ -2296,7 +2382,8 @@ async function eliminarCot(id){
 async function verCot(id){
   try{
     const c=await DATA.getCot(id);if(!c)return;
-    const pagos={5050:'50% anticipo / 50% entrega','100a':'100% anticipo',c30:'Crédito 30 días',c60:'Crédito 60 días'};
+    const pagos={contado:'Contado',5050:'50% de anticipo y 50% restante contra entrega','5050est':'50% de anticipo y resto contra estimaciones semanales',6040:'60% de anticipo y 40% contra entrega','6040est':'60% de anticipo y 40% contra estimaciones semanales',c15:'Crédito a 15 días',c30:'Crédito a 30 días'};
+    const labs={balzadi:'LAB Balzadi',obra:'LAB en obra',paqueteria:'LAB en paquetería de su elección'};
     document.getElementById('detail-title').textContent='Cotización '+c.folio;
     document.getElementById('detail-content').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px"><div><div style="font-size:10px;color:#aaa">Cliente</div><div style="font-weight:600">${c.cliente?.nombre||c.cliente||'—'}</div><div style="font-size:12px;color:var(--GM)">${c.cliente?.contacto||''} · ${c.cliente?.tel||''}</div></div><div><div style="font-size:10px;color:#aaa">Proyecto</div><div style="font-weight:600">${c.obra||'—'}</div><div style="font-size:12px;color:var(--GM)">${c.ubi||'—'}</div></div><div><div style="font-size:10px;color:#aaa">Fecha · Vigencia</div><div style="font-size:12.5px">${new Date(c.fecha).toLocaleDateString('es-MX')} · ${c.vigencia} días</div></div><div><div style="font-size:10px;color:#aaa">Estado</div>${estBadge(c.estado)}</div></div><div style="overflow-x:auto"><table style="min-width:460px"><thead><tr><th>#</th><th>Descripción</th><th class="num">Cant.</th>${SESSION.rol!=='produccion'?'<th class="num">P.U.</th><th class="num">Importe</th>':''}</tr></thead><tbody>${(c.partidas||[]).map((p,i)=>'<tr><td>'+(i+1)+'</td><td>'+tipoBadge(p.tipo)+' <span style="font-size:11.5px">'+p.desc+'</span></td><td class="num">'+p.qty+'</td>'+(SESSION.rol!=='produccion'?'<td class="num">$'+fmt(p.pu)+'</td><td class="num" style="font-weight:600">$'+fmt(p.importe)+'</td>':'')+'</tr>').join('')}</tbody></table></div>${SESSION.rol!=='produccion'?'<div style="margin-top:12px"><div class="dg-row"><span class="dg-lbl">Subtotal</span><span class="dg-val">$'+fmt(c.sub)+'</span></div><div class="dg-row"><span class="dg-lbl">IVA (16%)</span><span class="dg-val">$'+fmt(c.iva)+'</span></div><div class="dg-row"><span class="dg-total">Total con IVA</span><span class="dg-total">$'+fmt(c.total)+'</span></div></div>':''}${c.obs?'<div style="margin-top:10px;background:var(--GF);border-radius:6px;padding:9px 12px;font-size:12px;color:var(--GM)"><strong>Obs:</strong> '+c.obs+'</div>':''}<div style="margin-top:12px;background:var(--GF);border-radius:6px;padding:10px 12px"><div style="font-size:11px;font-weight:600;color:var(--GM);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Seguimiento</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:180px"><label style="font-size:11px;color:#aaa">Próximo contacto</label><input type="date" id="seg-fecha" value="${c.proximoContacto||''}" style="display:block;width:100%;margin-top:3px;border:1.5px solid var(--GB);border-radius:var(--r2);padding:6px 10px;font-size:13px;font-family:inherit;outline:none"></div><div style="flex:2;min-width:180px"><label style="font-size:11px;color:#aaa">Nota de seguimiento</label><input type="text" id="seg-nota" value="${c.notaSeg||''}" placeholder="Ej. Enviar propuesta revisada…" style="display:block;width:100%;margin-top:3px;border:1.5px solid var(--GB);border-radius:var(--r2);padding:6px 10px;font-size:13px;font-family:inherit;outline:none"></div><button class="btn btn-n" style="margin-top:16px" onclick="guardarSeguimiento('${c.id}')">Guardar</button></div></div>`;
     const acts=[];
@@ -2443,7 +2530,7 @@ async function hacerPDF(id){
   if(!c){notif('Cotización no encontrada','#C0392B');return;}
   if(!c)return;
   const logoData=LOGO_B64||'';
-  const pagos={5050:'50% de anticipo / 50% contra entrega','100a':'100% de anticipo',c30:'Crédito a 30 días',c60:'Crédito a 60 días'};
+  const pagos={contado:'Contado',5050:'50% de anticipo y 50% restante contra entrega','5050est':'50% de anticipo y resto contra estimaciones semanales',6040:'60% de anticipo y 40% contra entrega','6040est':'60% de anticipo y 40% contra estimaciones semanales',c15:'Crédito a 15 días',c30:'Crédito a 30 días'};
   const inst=c.inst==='si'
     ? 'Con instalación — incluye colocación en sitio, cimentación de postes y mano de obra de instalación.'
     : 'Sin instalación — suministro de material únicamente. La instalación queda a cargo del cliente.';
@@ -2624,6 +2711,7 @@ async function hacerPDF(id){
           <div class="info-item"><span class="info-label">Proyecto</span><span class="info-value">${c.obra||'—'}</span></div>
           <div class="info-item"><span class="info-label">Ubicación</span><span class="info-value">${c.ubi||'—'}</span></div>
           <div class="info-item"><span class="info-label">Pago</span><span class="info-value">${pagos[c.pago]||c.pago||'—'}</span></div>
+          <div class="info-item"><span class="info-label">Libre abordo</span><span class="info-value">${labs[c.lab]||c.lab||'LAB Balzadi'}</span></div>
           <div class="info-item"><span class="info-label">Vendedor</span><span class="info-value">${c.vendedorNombre||'—'}</span></div>
         </div>
       </div>
@@ -3186,6 +3274,8 @@ async function hacerOrdenTrabajo(id){
           <div class="info-item"><span class="info-label">Proyecto</span><span class="info-value">${c.obra||'—'}</span></div>
           <div class="info-item"><span class="info-label">Ubicación</span><span class="info-value">${c.ubi||'—'}</span></div>
           <div class="info-item"><span class="info-label">Instalación</span><span class="info-value" style="color:${c.inst==='si'?AT:'#B71C1C'};font-weight:700">${c.inst==='si'?'✓ Con instalación en sitio':'✗ Solo suministro'}</span></div>
+          <div class="info-item"><span class="info-label">Forma de pago</span><span class="info-value">${pagos[c.pago]||c.pago||'—'}</span></div>
+          <div class="info-item"><span class="info-label">Libre abordo</span><span class="info-value">${labs[c.lab]||c.lab||'LAB Balzadi'}</span></div>
           <div class="info-item"><span class="info-label">Vendedor</span><span class="info-value">${c.vendedorNombre||'—'}</span></div>
         </div>
       </div>
@@ -3285,6 +3375,7 @@ Le compartimos nuestra cotización:
 📍 *Ubicación:* ${c.ubi||'—'}
 🔧 *${inst}*
 💳 *Pago:* ${pagos[c.pago]||c.pago||'—'}
+🚚 *Libre abordo:* ${labs[c.lab]||c.lab||'LAB Balzadi'}
 
 💰 *Subtotal:* $${fmt(c.sub||0)} MXN
 💰 *IVA (16%):* $${fmt(c.iva||0)} MXN
@@ -4079,6 +4170,143 @@ function aplicarInstCuadrilla(){
   const el=document.getElementById('mp_inst');
   if(el){el.value=val;calcSenal();}
   notif('Instalación actualizada: $'+val.toLocaleString('es-MX')+'/poste ✓','#1A7A3F');
+}
+
+// ===== CLIENTES =====
+async function renderClientes(){
+  const q=(document.getElementById('cli-bus')?.value||'').toLowerCase().trim();
+  const lista=await DATA.getClientes();
+  const filtrados=q?lista.filter(c=>(c.nombre||'').toLowerCase().includes(q)||(c.contacto||'').toLowerCase().includes(q)||(c.email||'').toLowerCase().includes(q)):lista;
+  const el=document.getElementById('cli-lista');
+  if(!el)return;
+  if(!filtrados.length){
+    el.innerHTML='<div style="padding:30px;text-align:center;color:#bbb;font-size:13px">'+(q?'Sin resultados para "'+q+'"':'No hay clientes guardados aún. Crea el primero.')+'</div>';
+    return;
+  }
+  const tipoLabel={priv:'Privado',gob:'Gobierno',dir:'Trato directo'};
+  const tipoBg={priv:'#FFF3E0',gob:'#E3F2FD',dir:'#E8F5E9'};
+  const tipoColor={priv:'#E65100',gob:'#0D47A1',dir:'#1B5E20'};
+  el.innerHTML=filtrados.map(c=>`
+    <div style="border:1.5px solid var(--GB);border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:10px;background:#fff">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-size:13.5px;font-weight:700;color:var(--N)">${c.nombre||'—'}</span>
+          <span style="font-size:10px;padding:2px 7px;border-radius:10px;background:${tipoBg[c.tipo]||'#f5f5f5'};color:${tipoColor[c.tipo]||'#555'};font-weight:600">${tipoLabel[c.tipo]||c.tipo||'—'}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--GM);display:flex;flex-wrap:wrap;gap:10px">
+          ${c.contacto?'<span>👤 '+c.contacto+'</span>':''}
+          ${c.tel?'<span>📞 '+c.tel+'</span>':''}
+          ${c.email?'<span>✉️ '+c.email+'</span>':''}
+          ${c.notas?'<span style="color:#aaa">📝 '+c.notas+'</span>':''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-v" style="font-size:11px;padding:5px 10px" onclick="seleccionarClienteEnCot('${c.id}')">Usar en cotización</button>
+        <button class="btn" style="font-size:11px;padding:5px 10px;background:#F3F4F6;color:#444" onclick="abrirFormCliente('${c.id}')">Editar</button>
+        <button class="btn btn-r" style="font-size:11px;padding:5px 8px" onclick="eliminarCliente('${c.id}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function abrirFormCliente(id){
+  const wrap=document.getElementById('cli-form-wrap');
+  if(!wrap)return;
+  document.getElementById('cli-form-id').value='';
+  document.getElementById('cli-form-nombre').value='';
+  document.getElementById('cli-form-contacto').value='';
+  document.getElementById('cli-form-tel').value='';
+  document.getElementById('cli-form-email').value='';
+  document.getElementById('cli-form-tipo').value='priv';
+  document.getElementById('cli-form-notas').value='';
+  document.getElementById('cli-form-titulo').textContent='Nuevo cliente';
+  if(id){
+    DATA.getClientes().then(list=>{
+      const c=list.find(x=>x.id===id);if(!c)return;
+      document.getElementById('cli-form-id').value=c.id;
+      document.getElementById('cli-form-nombre').value=c.nombre||'';
+      document.getElementById('cli-form-contacto').value=c.contacto||'';
+      document.getElementById('cli-form-tel').value=c.tel||'';
+      document.getElementById('cli-form-email').value=c.email||'';
+      document.getElementById('cli-form-tipo').value=c.tipo||'priv';
+      document.getElementById('cli-form-notas').value=c.notas||'';
+      document.getElementById('cli-form-titulo').textContent='Editar cliente';
+    });
+  }
+  wrap.style.display='flex';
+}
+
+function cerrarFormCliente(){
+  const wrap=document.getElementById('cli-form-wrap');if(wrap)wrap.style.display='none';
+}
+
+async function guardarCliente(){
+  const nombre=(document.getElementById('cli-form-nombre')?.value||'').trim();
+  if(!nombre){notif('Escribe el nombre del cliente','#C0392B');return;}
+  const c={
+    id:document.getElementById('cli-form-id')?.value||'',
+    nombre,
+    contacto:document.getElementById('cli-form-contacto')?.value||'',
+    tel:document.getElementById('cli-form-tel')?.value||'',
+    email:document.getElementById('cli-form-email')?.value||'',
+    tipo:document.getElementById('cli-form-tipo')?.value||'priv',
+    notas:document.getElementById('cli-form-notas')?.value||''
+  };
+  if(!c.id)delete c.id;
+  await DATA.saveCliente(c);
+  cerrarFormCliente();
+  renderClientes();
+  notif('Cliente guardado ✓','#1A7A3F');
+}
+
+async function eliminarCliente(id){
+  if(!confirm('¿Eliminar este cliente?'))return;
+  await DATA.deleteCliente(id);
+  renderClientes();
+  notif('Cliente eliminado');
+}
+
+async function seleccionarClienteEnCot(id){
+  const list=await DATA.getClientes();
+  const c=list.find(x=>x.id===id);if(!c)return;
+  document.getElementById('c-cn').value=c.nombre||'';
+  document.getElementById('c-cc').value=c.contacto||'';
+  document.getElementById('c-ctel').value=c.tel||'';
+  document.getElementById('c-ce').value=c.email||'';
+  if(c.tipo)selCli(c.tipo);
+  irTab('cot');
+  notif('Cliente cargado ✓','#1A7A3F');
+}
+
+// Picker de cliente desde la cotización
+let _cliPickerLista=[];
+async function abrirPickerCliente(){
+  _cliPickerLista=await DATA.getClientes();
+  const modal=document.getElementById('modal-cli-pick');
+  if(!modal)return;
+  document.getElementById('cli-pick-bus').value='';
+  renderPickerClientes('');
+  modal.classList.add('open');
+}
+function renderPickerClientes(q){
+  q=q.toLowerCase().trim();
+  const filtrados=q?_cliPickerLista.filter(c=>(c.nombre||'').toLowerCase().includes(q)||(c.contacto||'').toLowerCase().includes(q)||(c.email||'').toLowerCase().includes(q)):_cliPickerLista;
+  const el=document.getElementById('cli-pick-lista');if(!el)return;
+  if(!filtrados.length){el.innerHTML='<div style="padding:20px;text-align:center;color:#bbb;font-size:12px">'+(q?'Sin resultados':'No hay clientes guardados')+'</div>';return;}
+  el.innerHTML=filtrados.map(c=>`
+    <div onclick="aplicarPickerCliente('${c.id}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--GB);transition:.1s" onmouseover="this.style.background='#F0F9FF'" onmouseout="this.style.background=''">
+      <div style="font-size:13px;font-weight:600;color:var(--N)">${c.nombre||'—'}</div>
+      <div style="font-size:11px;color:var(--GM)">${[c.contacto,c.tel,c.email].filter(Boolean).join(' · ')}</div>
+    </div>`).join('');
+}
+function aplicarPickerCliente(id){
+  const c=_cliPickerLista.find(x=>x.id===id);if(!c)return;
+  document.getElementById('c-cn').value=c.nombre||'';
+  document.getElementById('c-cc').value=c.contacto||'';
+  document.getElementById('c-ctel').value=c.tel||'';
+  document.getElementById('c-ce').value=c.email||'';
+  if(c.tipo)selCli(c.tipo);
+  cerrarModal('modal-cli-pick');
+  notif('Cliente cargado ✓','#1A7A3F');
 }
 
 initData().then(()=>{onSenal();selCli('priv');calcCuadrilla();renderBDV();}).catch(e=>console.error('Init error:',e));
