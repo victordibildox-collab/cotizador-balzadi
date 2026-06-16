@@ -2961,6 +2961,18 @@
             </div>
           </div>
 
+          <!-- DISPOSITIVOS VIALES PRECIOS -->
+          <div class="card" style="margin-top:18px;padding:0;overflow:hidden">
+            <div class="card-title" style="cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center" onclick="toggleDVPreciosPanel()">
+              <span>🚧 Dispositivos Viales — Precios de costo</span>
+              <span id="dv-precios-arrow" style="font-size:13px;opacity:.6">▶ expandir</span>
+            </div>
+            <div id="dv-precios-body" style="display:none;padding:14px 16px">
+              <div style="font-size:11.5px;color:#888;margin-bottom:14px">Precios de compra (sin margen). Al seleccionar un DV del catálogo se auto-rellenará el campo de precio.</div>
+              <div id="dv-precios-grid"></div>
+            </div>
+          </div>
+
           <div style="display:flex;justify-content:flex-end;margin-top:14px">
             <button class="btn btn-n" onclick="guardarMP()">Guardar materias primas</button>
           </div>
@@ -4415,6 +4427,9 @@
     // ===== MP / MRG =====
     async function cargarMP() {
       try {
+        // Asegurar que los inputs de DV existan antes de cargar valores
+        const body = document.getElementById('dv-precios-body');
+        if (body) buildDVPreciosGrid(body);
         const mp = await DATA.getConfig('mp');
         if (mp) Object.entries(mp).forEach(([k, v]) => { const el = document.getElementById(k); if (el) el.value = v; });
         actualizarPreciosPel();
@@ -4428,6 +4443,8 @@
         'p_ptr1h_14', 'p_ptr2_14', 'p_ptr2_12', 'p_ptr2h_12', 'p_ptr2h_14', 'p_ptr3_14', 'p_ptr4_11', 'p_ptr4_14p',
         'p_bandera', 'p_puente', 't_ang2_s', 't_ang2_g', 't_ang3', 't_tub_s', 't_tub_g', 't_ban',
         't_av_ang', 't_av_tub', 'mp_vinil_negro', 'mp_electrocut_rojo', 'mp_electrocut_verde', 'mp_electrocut_azul', 'mp_electrocut_cafe', 'mp_transfer', 'sh_pba', 'sh_pbc', 'sh_pad', 'sh_ptp', 'sh_pme'];
+      // Agregar IDs de dispositivos viales
+      CATALOGO_BDV.forEach(p => ids.push(dvPKey(p.id)));
       const mp = {}; ids.forEach(id => { const el = document.getElementById(id); if (el) mp[id] = parseFloat(el.value) || 0; });
       if (!USE_CLOUD) { notif('⚠️ Supabase no configurado — guardado solo en este navegador', '#E67E22'); await DATA.setConfig('mp', mp); return; }
       try { await DATA.setConfig('mp', mp); notif('Materias primas guardadas ✓ (Supabase)', '#1A7A3F'); }
@@ -5909,6 +5926,55 @@ ventas@balzadi.com.mx | www.balzadi.com.mx`;
       }).join('');
     }
 
+    // ===== PRECIOS DV EN MATERIAS PRIMAS =====
+    const DV_DEFAULTS = {
+      'LAM_01':1500,'FLE_01':3500,'FLE_02':4500,'FLE_03':6000,
+      'POS_01':180,'POS_02':120,
+      'CON_01':85,'CON_02':120,'TRA_01':550,'TRA_02':420,'BAS_01':180,
+      'BAR_01':350,'BAR_02':950,'MAL_01':120,
+      'BOY_01':280,'BOY_02':380,'BOY_03':450,'BOY_04':350,'BOY_05':260,
+      'TOP_01':280,'TOP_02':750,'TOP_03':280,'TOP_04':750,'TOP_05':580,'TOP_06':650,'ANC_01':35,
+      'ESQ_01':120,'ESQ_02':140,'DEL_01':95,'DEL_02':380,'REG_01':85,
+      'VIA_01':28,'VIA_02':22,'VIA_03':18,'VIA_04':14,'VIA_05':20,'VIA_06':180,'VIA_07':12,'VIA_08':25,'VIA_09':20,'VIA_10':22,'VIA_11':20,'VIA_12':25,
+      'BOT_01':45,'BOT_02':45,'BOT_03':35,'BOT_04':35,'BOT_05':55,'BOT_06':65,
+      'FAN_01':180,'FAN_02':95,'FAN_03':110,'FAN_04':140,'FAN_05':160,
+      'MEN_01':450,'MEN_02':550,
+      'BOL_01':1800,'BOL_02':1500,'BOL_03':1200,
+      'PEG_01':3500,'VAR_01':85,'TAQ_01':8,'TAQ_02':12,'TAQ_03':10,'TAQ_04':15
+    };
+    function dvPKey(id){ return 'p_dv_'+id.replace(/-/g,'_'); }
+    function getDVPrecio(id){ const el=document.getElementById(dvPKey(id)); return el?parseFloat(el.value)||0:0; }
+    function buildDVPreciosGrid(body){
+      if(body.dataset.built) return;
+      body.dataset.built='1';
+      const cats={};
+      CATALOGO_BDV.forEach(p=>{if(!cats[p.cat])cats[p.cat]=[];cats[p.cat].push(p);});
+      document.getElementById('dv-precios-grid').innerHTML=Object.entries(cats).map(([cat,items])=>{
+        const m=CAT_BDV_META[cat]||{ico:'📦',col:'#f5f5f5',tc:'#555'};
+        return `<div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;color:${m.tc};background:${m.col};padding:4px 10px;border-radius:6px;margin-bottom:8px">${m.ico} ${cat}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px">
+            ${items.map(p=>{
+              const k=dvPKey(p.id);
+              const def=DV_DEFAULTS[p.id.replace(/-/g,'_')]||0;
+              return `<div class="mp-row" style="margin:0;padding:5px 8px;background:#fafafa;border-radius:6px;border:1px solid #eee">
+                <span class="mp-lbl" style="font-size:11.5px"><code style="font-size:10px;color:#6A1B9A;background:#F3E5F5;padding:1px 5px;border-radius:4px">${p.id}</code> ${p.nom}</span>
+                <div class="mp-inp"><span>$</span><input type="number" id="${k}" value="${def}" step="10" min="0"></div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('');
+    }
+    function toggleDVPreciosPanel(){
+      const body=document.getElementById('dv-precios-body');
+      const arrow=document.getElementById('dv-precios-arrow');
+      const open=body.style.display!=='none';
+      if(!open) buildDVPreciosGrid(body);
+      body.style.display=open?'none':'block';
+      arrow.textContent=open?'▶ expandir':'▼ contraer';
+    }
+
     function selBDV(pOrId) {
       const p = typeof pOrId === 'string' ? CATALOGO_BDV.find(x => x.id === pOrId) : pOrId;
       if (!p) return;
@@ -5924,6 +5990,9 @@ ventas@balzadi.com.mx | www.balzadi.com.mx`;
       document.getElementById('bdv-form-cat').textContent = p.cat + ' · unidad: ' + p.un;
       document.getElementById('bdv-un').textContent = p.un;
       document.getElementById('bdv-form').style.display = 'block';
+      // Auto-rellenar precio de costo guardado en MP
+      const precGuardado = getDVPrecio(p.id);
+      if (precGuardado > 0) document.getElementById('bdv-pu').value = precGuardado;
       calcBDV();
       document.getElementById('bdv-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
