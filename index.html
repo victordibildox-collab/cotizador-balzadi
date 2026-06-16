@@ -971,7 +971,9 @@ tbody td{padding:7px 10px;vertical-align:middle}
 
     <!-- USUARIOS -->
     <div class="pnl" id="pnl-users">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <div id="users-storage-info" style="margin-bottom:12px;padding:10px 14px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <button class="btn" style="background:#fff;border:1.5px solid #CBD5E0;color:#374151;font-size:12px" onclick="probarSupabase()">🔌 Probar conexión Supabase</button>
         <button class="btn btn-n" onclick="abrirModalUser()">+ Nuevo usuario</button>
       </div>
       <div id="users-list"></div>
@@ -1374,26 +1376,28 @@ const SB = USE_CLOUD ? {
   async select(t,f={}){
     const p=Object.entries(f).map(([k,v])=>k+'=eq.'+encodeURIComponent(v)).join('&');
     const r=await fetch(SUPABASE_URL+'/rest/v1/'+t+'?'+(p||'order=created_at.desc'),{headers:this.h});
-    if(!r.ok)throw new Error(await r.text());return r.json();
+    if(!r.ok){const txt=await r.text();throw new Error('['+r.status+'] '+txt);}return r.json();
   },
   async insert(t,d){
     const r=await fetch(SUPABASE_URL+'/rest/v1/'+t,{method:'POST',headers:this.h,body:JSON.stringify(d)});
-    if(!r.ok)throw new Error(await r.text());const res=await r.json();return Array.isArray(res)?res[0]:res;
+    if(!r.ok){const txt=await r.text();throw new Error('['+r.status+'] '+txt);}
+    const res=await r.json();return Array.isArray(res)?res[0]:res;
   },
   async update(t,f,d){
     const p=Object.entries(f).map(([k,v])=>k+'=eq.'+encodeURIComponent(v)).join('&');
     const r=await fetch(SUPABASE_URL+'/rest/v1/'+t+'?'+p,{method:'PATCH',headers:this.h,body:JSON.stringify(d)});
-    if(!r.ok)throw new Error(await r.text());
+    if(!r.ok){const txt=await r.text();throw new Error('['+r.status+'] '+txt);}
   },
   async upsert(t,d,oc='key'){
     const h={...this.h,'Prefer':'resolution=merge-duplicates,return=representation'};
     const r=await fetch(SUPABASE_URL+'/rest/v1/'+t+'?on_conflict='+oc,{method:'POST',headers:h,body:JSON.stringify(d)});
-    if(!r.ok)throw new Error(await r.text());const res=await r.json();return Array.isArray(res)?res[0]:res;
+    if(!r.ok){const txt=await r.text();throw new Error('['+r.status+'] '+txt);}
+    const res=await r.json();return Array.isArray(res)?res[0]:res;
   },
   async del(t,f){
     const p=Object.entries(f).map(([k,v])=>k+'=eq.'+encodeURIComponent(v)).join('&');
     const r=await fetch(SUPABASE_URL+'/rest/v1/'+t+'?'+p,{method:'DELETE',headers:this.h});
-    if(!r.ok)throw new Error(await r.text());
+    if(!r.ok){const txt=await r.text();throw new Error('['+r.status+'] '+txt);}
   }
 } : null;
 
@@ -1413,8 +1417,12 @@ const DATA={
   },
   async saveUser(u){
     if(USE_CLOUD){
-      if(u.id){await SB.update('bzd_users',{id:u.id},u);return u;}
-      const cr=await SB.insert('bzd_users',{...u,username:u.user});return{...u,id:cr.id};
+      if(u.id){
+        await SB.update('bzd_users',{id:u.id},{nombre:u.nombre,user:u.user,username:u.user,pass:u.pass,rol:u.rol});
+        return u;
+      }
+      const cr=await SB.insert('bzd_users',{nombre:u.nombre,user:u.user,username:u.user,pass:u.pass,rol:u.rol});
+      return{...u,id:cr?.id||u.user};
     }
     const users=LS.get('users')||[];
     const i=users.findIndex(x=>x.id===u.id);
@@ -1607,7 +1615,7 @@ const PEL_NOTAS={
 let SESSION=null,npid=1,partidas=[],cliCalc='priv',formaActual='cuad',pelActual='GI',svSelCod='',svSelDim='';
 // ===== AUTH =====
 async function doLogin(){
-  const user=document.getElementById('l-user').value.trim();
+  const user=document.getElementById('l-user').value.trim().toLowerCase();
   const pass=document.getElementById('l-pass').value;
   try{
     const found=USE_CLOUD
@@ -2418,17 +2426,61 @@ async function renderProd(){
   }catch(e){console.error('renderProd:',e);}
 }
 
+// ===== SUPABASE DIAGNÓSTICO =====
+async function probarSupabase(){
+  const infoEl=document.getElementById('users-storage-info');
+  if(!USE_CLOUD){
+    infoEl.style.background='#FFF3CD';infoEl.style.border='1.5px solid #FFC107';
+    infoEl.innerHTML='⚠️ <strong>SUPABASE NO CONFIGURADO</strong> — Las variables <code>SUPABASE_URL</code> y <code>SUPABASE_KEY</code> están vacías en el archivo. Los datos se guardan en este navegador (localStorage) y no persisten en otros dispositivos.<br><br>'
+      +'<strong>Para activar Supabase:</strong> Abre el archivo HTML, busca las líneas <code>const SUPABASE_URL = \'\'</code> y <code>const SUPABASE_KEY = \'\'</code> y llena tus credenciales de Supabase.';
+    return;
+  }
+  infoEl.style.background='#EFF6FF';infoEl.style.border='1.5px solid #BFDBFE';
+  infoEl.innerHTML='🔄 Probando conexión Supabase...';
+  try{
+    const r=await SB.select('bzd_config',{key:'_test_ping'});
+    infoEl.style.background='#E8F5E9';infoEl.style.border='1.5px solid #A5D6A7';
+    infoEl.innerHTML='✅ <strong>Supabase conectado correctamente.</strong> La tabla <code>bzd_config</code> responde. Si los datos no se guardan, revisa las políticas RLS en Supabase → Table Editor → bzd_config → Policies: debe existir una política "allow_all".';
+  }catch(e){
+    infoEl.style.background='#FEE2E2';infoEl.style.border='1.5px solid #FCA5A5';
+    let msg='❌ <strong>Error de conexión:</strong> '+e.message+'<br><br>';
+    if(e.message.includes('401')||e.message.includes('403')){
+      msg+='<strong>Causa probable:</strong> API Key inválida o permisos insuficientes. Verifica tu <code>SUPABASE_KEY</code> (usa la clave <em>anon public</em> de tu proyecto).';
+    } else if(e.message.includes('404')){
+      msg+='<strong>Causa probable:</strong> La tabla <code>bzd_config</code> no existe. Ejecuta el SQL de configuración en Supabase → SQL Editor.';
+    } else if(e.message.includes('42501')){
+      msg+='<strong>Causa probable:</strong> RLS activo sin política. En Supabase → Authentication → Policies, agrega política "allow_all" en las tablas bzd_config y bzd_users.';
+    } else {
+      msg+='<strong>Verifica:</strong> URL correcta, tabla bzd_config existente, y políticas RLS configuradas.';
+    }
+    infoEl.innerHTML=msg;
+  }
+}
+
 // ===== USUARIOS =====
 async function renderUsers(){
   try{
     const users=await DATA.getUsers();
+    // Indicador de modo de almacenamiento
+    const infoEl=document.getElementById('users-storage-info');
+    if(infoEl){
+      if(USE_CLOUD){
+        infoEl.style.background='#E8F5E9';infoEl.style.border='1.5px solid #A5D6A7';
+        infoEl.innerHTML='☁️ <strong>Supabase activo</strong> — usuarios sincronizados en la nube. Usa el botón "Probar conexión" si hay problemas.';
+      } else {
+        infoEl.style.background='#FEE2E2';infoEl.style.border='1.5px solid #FCA5A5';
+        infoEl.innerHTML='🔴 <strong>Supabase NO configurado</strong> — Los datos se guardan solo en este navegador. Haz clic en "Probar conexión Supabase" para ver instrucciones de configuración.';
+      }
+    }
     const col={admin:'var(--N)',vendedor:'var(--AZ)',produccion:'var(--VE)'};
     const rb={admin:'<span class="badge badm">Admin</span>',vendedor:'<span class="badge bvend">Vendedor</span>',produccion:'<span class="badge bprod">Producción</span>'};
-    document.getElementById('users-list').innerHTML=users.map(u=>{
-    const elimBtn=u.id!==SESSION.id?`<button class="btn btn-r" onclick="eliminarUser('${u.id}')">Eliminar</button>`:'';
-    return `<div class="user-card"><div class="user-avatar" style="background:${col[u.rol]||'var(--GM)'}"> ${u.nombre.charAt(0)}</div><div class="user-info"><div class="user-name">${u.nombre}</div><div class="user-email">${u.user} ${rb[u.rol]||u.rol}</div></div><div class="user-actions"><button class="btn btn-az" onclick="editarUser('${u.id}')">Editar</button>${elimBtn}</div></div>`;
-  }).join('');;
-  }catch(e){console.error('renderUsers:',e);}
+    document.getElementById('users-list').innerHTML=users.length
+      ? users.map(u=>{
+          const elimBtn=u.id!==SESSION.id?`<button class="btn btn-r" onclick="eliminarUser('${u.id}')">Eliminar</button>`:'';
+          return `<div class="user-card"><div class="user-avatar" style="background:${col[u.rol]||'var(--GM)'}"> ${u.nombre.charAt(0)}</div><div class="user-info"><div class="user-name">${u.nombre}</div><div class="user-email">${u.user} ${rb[u.rol]||u.rol}</div></div><div class="user-actions"><button class="btn btn-az" onclick="editarUser('${u.id}')">Editar</button>${elimBtn}</div></div>`;
+        }).join('')
+      : '<div style="padding:20px;text-align:center;color:#bbb">No hay usuarios registrados</div>';
+  }catch(e){console.error('renderUsers:',e);notif('Error al cargar usuarios: '+e.message,'#C0392B');}
 }
 function abrirModalUser(){
   ['u-nombre','u-user','u-pass'].forEach(id=>document.getElementById(id).value='');
@@ -2448,17 +2500,29 @@ async function editarUser(id){
 }
 async function guardarUsuario(){
   const nombre=document.getElementById('u-nombre').value.trim();
-  const user=document.getElementById('u-user').value.trim();
+  const user=document.getElementById('u-user').value.trim().toLowerCase();
   const pass=document.getElementById('u-pass').value;
   const rol=document.getElementById('u-rol').value;
   const editId=document.getElementById('u-edit-id').value;
   if(!nombre||!user||!pass){notif('Completa todos los campos','#C0392B');return;}
   if(pass.length<6){notif('Contraseña mínimo 6 caracteres','#C0392B');return;}
   try{
-    if(!editId){const ex=await DATA.findUser(user);if(ex){notif('Usuario ya existe','#C0392B');return;}}
-    await DATA.saveUser(editId?{id:editId,nombre,user,pass,rol}:{nombre,user,pass,rol});
-    cerrarModal('modal-user');renderUsers();notif(editId?'Usuario actualizado ✓':'Usuario creado ✓');
-  }catch(e){notif('Error: '+e.message,'#C0392B');}
+    if(!editId){
+      const ex=await DATA.findUser(user);
+      if(ex){notif('El usuario "'+user+'" ya existe','#C0392B');return;}
+    }
+    const saved=await DATA.saveUser(editId?{id:editId,nombre,user,pass,rol}:{nombre,user,pass,rol});
+    console.log('Usuario guardado:',saved);
+    // Verificar que quedó guardado
+    const verify=await DATA.findUser(user);
+    if(!verify){notif('Error: el usuario no se pudo verificar después de guardar','#C0392B');return;}
+    cerrarModal('modal-user');
+    renderUsers();
+    notif((editId?'Usuario actualizado ✓':'Usuario creado ✓')+' — login: '+user,'#1A7A3F');
+  }catch(e){
+    console.error('guardarUsuario error:',e);
+    notif('Error al guardar: '+e.message,'#C0392B');
+  }
 }
 async function eliminarUser(id){
   if(!confirm('¿Eliminar usuario?'))return;
@@ -2483,8 +2547,9 @@ async function guardarMP(){
     'p_bandera','p_puente','t_ang2_s','t_ang2_g','t_ang3','t_tub_s','t_tub_g','t_ban',
     't_av_ang','t_av_tub','mp_vinil_negro','mp_electrocut_rojo','mp_electrocut_verde','mp_electrocut_azul','mp_electrocut_cafe','mp_transfer','sh_pba','sh_pbc','sh_pad','sh_ptp','sh_pme'];
   const mp={};ids.forEach(id=>{const el=document.getElementById(id);if(el)mp[id]=parseFloat(el.value)||0;});
-  try{await DATA.setConfig('mp',mp);notif('Materias primas guardadas ✓','#1A7A3F');}
-  catch(e){notif('Error al guardar: '+e.message,'#C0392B');}
+  if(!USE_CLOUD){notif('⚠️ Supabase no configurado — guardado solo en este navegador','#E67E22');await DATA.setConfig('mp',mp);return;}
+  try{await DATA.setConfig('mp',mp);notif('Materias primas guardadas ✓ (Supabase)','#1A7A3F');}
+  catch(e){console.error('guardarMP:',e);notif('Error Supabase al guardar MP: '+e.message,'#C0392B');}
 }
 function cargarMrg(){
   DATA.getConfig('mrg').then(mrg=>{
