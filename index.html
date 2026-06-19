@@ -3368,6 +3368,23 @@
       set: (k, v) => localStorage.setItem('bzd6_' + k, JSON.stringify(v)),
     };
 
+    // Columnas reales de bzd_cotizaciones (Supabase) y mapeo camelCase del código → snake_case de la BD
+    const COT_COLUMNS = ['id', 'folio', 'fecha', 'cliente', 'obra', 'ubi', 'vigencia', 'pago', 'lab', 'inst', 'obs', 'partidas', 'sub', 'iva', 'total', 'estado', 'estado_fab', 'vendedor', 'vendedor_id', 'vendedorNombre', 'notas_fab', 'fecha_entrega', 'proximo_contacto', 'nota_seg', 'created_at'];
+    const COT_TO_DB = { estadoFab: 'estado_fab', notasFab: 'notas_fab', fechaEntrega: 'fecha_entrega', proximoContacto: 'proximo_contacto', notaSeg: 'nota_seg' };
+    const COT_FROM_DB = { estado_fab: 'estadoFab', notas_fab: 'notasFab', fecha_entrega: 'fechaEntrega', proximo_contacto: 'proximoContacto', nota_seg: 'notaSeg' };
+    // Renombra claves camelCase→snake y descarta las que no son columnas reales (evita errores 400 de Supabase)
+    function cotToDB(obj) {
+      const out = {};
+      for (const k in obj) { const nk = COT_TO_DB[k] || k; if (COT_COLUMNS.includes(nk)) out[nk] = obj[k]; }
+      return out;
+    }
+    // Expone los campos snake_case de la BD también como camelCase para el resto de la app
+    function cotFromDB(row) {
+      if (!row || typeof row !== 'object') return row;
+      const out = { ...row };
+      for (const sk in COT_FROM_DB) { if (sk in row) out[COT_FROM_DB[sk]] = row[sk]; }
+      return out;
+    }
     const DATA = {
       async getUsers() {
         if (USE_CLOUD) return (await SB.select('bzd_users')) || [];
@@ -3417,16 +3434,18 @@
       },
       async saveCot(cot) {
         if (USE_CLOUD) {
-          const cc = { ...cot, partidas: JSON.stringify(cot.partidas) };
+          const cc = cotToDB({ ...cot, partidas: JSON.stringify(cot.partidas) });
           const cr = await SB.insert('bzd_cotizaciones', cc);
-          return { ...cr, partidas: cot.partidas };
+          return { ...cotFromDB(cr), partidas: cot.partidas };
         }
         const cots = LS.get('cotizaciones') || []; cots.unshift(cot); LS.set('cotizaciones', cots); return cot;
       },
       async updateCot(id, data) {
         if (USE_CLOUD) {
-          const upd = { ...data };
-          if (upd.partidas && typeof upd.partidas !== 'string') upd.partidas = JSON.stringify(upd.partidas);
+          const src = { ...data };
+          if (src.partidas && typeof src.partidas !== 'string') src.partidas = JSON.stringify(src.partidas);
+          const upd = cotToDB(src);
+          if (!Object.keys(upd).length) return;
           await SB.update('bzd_cotizaciones', { id }, upd); return;
         }
         const cots = LS.get('cotizaciones') || [];
@@ -3441,7 +3460,7 @@
         if (USE_CLOUD) {
           const filter = isAdmin ? {} : { vendedor_id: vendedorId };
           const rows = await SB.select('bzd_cotizaciones', filter);
-          return (rows || []).map(r => ({ ...r, partidas: typeof r.partidas === 'string' ? JSON.parse(r.partidas) : (r.partidas || []) }))
+          return (rows || []).map(r => ({ ...cotFromDB(r), partidas: typeof r.partidas === 'string' ? JSON.parse(r.partidas) : (r.partidas || []) }))
             .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
         }
         let cots = LS.get('cotizaciones') || [];
@@ -3452,7 +3471,7 @@
         if (USE_CLOUD) {
           const r = await SB.select('bzd_cotizaciones', { id });
           if (!r || !r[0]) return null;
-          const c = r[0]; c.partidas = typeof c.partidas === 'string' ? JSON.parse(c.partidas) : (c.partidas || []); return c;
+          const c = cotFromDB(r[0]); c.partidas = typeof c.partidas === 'string' ? JSON.parse(c.partidas) : (c.partidas || []); return c;
         }
         return (LS.get('cotizaciones') || []).find(c => c.id === id) || null;
       },
@@ -5023,7 +5042,53 @@
     function colorFG(colorKey) { return colorKey === 'blanco' ? '#1A1A1A' : '#FFFFFF'; }
     function colorBorder(colorKey) { return colorKey === 'blanco' ? '#1A1A1A' : '#FFFFFF'; }
 
-    function svgSignal(tipo, clave, texto, colorKey, size) {
+    // Limpia restos de Adobe Illustrator que rompen el SVG como documento independiente
+    function cleanSVG(raw) {
+      return (raw || '').replace(/\s+xmlns:(x|i|graph)="[^"]*"/g, '').replace(/<switch>[\s\S]*?<\/switch>/gi, '').replace(/&ns_[a-z]+;/gi, '');
+    }
+    // Escudos disponibles para insertar en señales de destino
+    const ESCUDO_OPC = [
+      { v: '', n: 'Sin escudo' },
+      { v: 'ESCUDO-FEDERAL', n: 'Federal' },
+      { v: 'ESCUDO-ESTATAL', n: 'Estatal' },
+      { v: 'FED+EST', n: 'Federal + Estatal' },
+      { v: 'ESCUDO-FEDERAL-C', n: 'Federal (cuota)' },
+      { v: 'ESCUDO-ESTATAL-C', n: 'Estatal (cuota)' }
+    ];
+    function escudosDe(val) {
+      if (val === 'FED+EST') return ['ESCUDO-FEDERAL', 'ESCUDO-ESTATAL'];
+      return val ? [val] : [];
+    }
+    // Devuelve el SVG del escudo con el número de ruta reemplazado (si se especifica), centrado
+    function escudoConNumero(key, num) {
+      let svg = cleanSVG(IMG_SENALES[key] || '');
+      if (num != null && String(num).trim() !== '') {
+        const n = String(num).replace(/[<>&"]/g, '').slice(0, 4);
+        svg = svg.replace(/<text\b([^>]*)>\s*\d+\s*<\/text>/i, (m, attrs) => {
+          const ty = (attrs.match(/translate\(\s*[\d.\-]+[\s,]+([\d.\-]+)\s*\)/) || [])[1] || 850;
+          const cls = (attrs.match(/class="[^"]*"/) || [''])[0];
+          return `<text ${cls} x="600" y="${ty}" text-anchor="middle">${n}</text>`;
+        });
+      }
+      return svg;
+    }
+    // Flechas: 8 direcciones (ángulo de rotación con base apuntando a la derecha)
+    const FLECHA_OPC = [
+      { v: '', n: 'Sin flecha' }, { v: 'arr', n: '↑ Recta' }, { v: 'aba', n: '↓ Atrás' },
+      { v: 'izq', n: '← Izquierda' }, { v: 'der', n: '→ Derecha' },
+      { v: 'sup-izq', n: '↖ Sup-izq' }, { v: 'sup-der', n: '↗ Sup-der' },
+      { v: 'inf-izq', n: '↙ Inf-izq' }, { v: 'inf-der', n: '↘ Inf-der' }
+    ];
+    const FLECHA_ANG = { der: 0, izq: 180, arr: -90, aba: 90, 'sup-der': -45, 'sup-izq': -135, 'inf-der': 45, 'inf-izq': 135 };
+    function flechaIzquierda(dir) { return ['izq', 'sup-izq', 'inf-izq'].includes(dir); }
+    function flechaSVG(dir, color, AL) {
+      const hw = AL / 2, t = AL * 0.16, hh = AL * 0.34, headW = AL * 0.44;
+      const pts = `${-hw},${-t} ${hw - headW},${-t} ${hw - headW},${-hh} ${hw},0 ${hw - headW},${hh} ${hw - headW},${t} ${-hw},${t}`;
+      return `<polygon points="${pts}" fill="${color}" transform="rotate(${FLECHA_ANG[dir] || 0})"/>`;
+    }
+
+    function svgSignal(tipo, clave, texto, colorKey, size, opts) {
+      opts = opts || {};
       const s = size || 120;
       const esRect = esRectangularMod(clave);
       // Use real SVG when available — solo si trae trazo real (algunos SVG quedaron truncados sin dibujo)
@@ -5062,16 +5127,35 @@
         if (esRect) {
           const bg = colorBG(colorKey), fg = colorFG(colorKey), bd = colorBorder(colorKey);
           const lines = (texto || '').split('\n').filter(l => l.trim());
-          const W = 220, H = 100;
-          const lineH = 20, fSize = 15;
-          const totalH = lines.length * lineH;
-          const startY = (H / 2) - (totalH / 2) + (lineH * 0.75);
-          const txtSVG = lines.map((l, i) => `<text x="${W / 2}" y="${startY + i * lineH}" text-anchor="middle" fill="${fg}" font-family="Arial,sans-serif" font-weight="700" font-size="${fSize}">${l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`).join('');
-          const ww = size ? size * 2.2 : s * 2.2, hh = size ? size : s;
+          const escudoKeys = escudosDe(opts.escudo);
+          const flecha = opts.flecha || '';
+          const P = 12, LH = 26, fSize = 18, ES = 52;
+          const nLines = Math.max(lines.length, 1);
+          const escudoRowH = escudoKeys.length ? ES + 8 : 0;
+          const textH = nLines * LH;
+          const H = Math.max(96, P * 2 + escudoRowH + textH);
+          const AW = flecha ? 88 : 0;
+          const maxChars = Math.max(4, ...lines.map(l => l.length), escudoKeys.length ? 6 : 0);
+          const textAreaW = Math.max(150, Math.round(maxChars * fSize * 0.56), escudoKeys.length * (ES + 6));
+          const W = Math.min(580, P * 2 + AW + (AW ? 8 : 0) + textAreaW);
+          const left = flechaIzquierda(flecha);
+          const textX0 = left ? (P + AW + 8) : P;
+          const arrowColX = left ? P : (W - P - AW);
+          // escudos centrados arriba del área de texto
+          const escTotalW = escudoKeys.length * ES + (escudoKeys.length - 1) * 6;
+          const escStartX = textX0 + (textAreaW / 2) - escTotalW / 2;
+          const escNums = opts.escudoNums || [];
+          const escudosSVG = escudoKeys.map((k, idx) => `<image href="data:image/svg+xml,${encodeURIComponent(escudoConNumero(k, escNums[idx]))}" x="${escStartX + idx * (ES + 6)}" y="${P}" width="${ES}" height="${ES}" preserveAspectRatio="xMidYMid meet"/>`).join('');
+          const textCX = textX0 + textAreaW / 2;
+          const startY = P + escudoRowH + LH * 0.74;
+          const txtSVG = lines.map((l, i) => `<text x="${textCX}" y="${startY + i * LH}" text-anchor="middle" fill="${fg}" font-family="Arial,sans-serif" font-weight="700" font-size="${fSize}">${l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`).join('');
+          const AL = AW ? Math.min(AW - 10, H - 2 * P) * 0.92 : 0;
+          const flechaG = flecha ? `<g transform="translate(${arrowColX + AW / 2},${H / 2})">${flechaSVG(flecha, fg, AL)}</g>` : '';
+          const hh = size ? size : s, ww = Math.round(hh * W / H);
           return `<svg viewBox="0 0 ${W} ${H}" width="${ww}" height="${hh}" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3" y="3" width="${W - 6}" height="${H - 6}" rx="5" fill="${bg}" stroke="${bd}" stroke-width="5"/>
-            <rect x="8" y="8" width="${W - 16}" height="${H - 16}" rx="3" fill="none" stroke="${fg}" stroke-width="1.5" opacity="0.5"/>
-            ${txtSVG}
+            <rect x="3" y="3" width="${W - 6}" height="${H - 6}" rx="6" fill="${bg}" stroke="${bd}" stroke-width="5"/>
+            <rect x="8" y="8" width="${W - 16}" height="${H - 16}" rx="4" fill="none" stroke="${fg}" stroke-width="1.5" opacity="0.5"/>
+            ${escudosSVG}${txtSVG}${flechaG}
           </svg>`;
         } else {
           // SII cuadrada, verde
@@ -5098,7 +5182,7 @@
         const _d0 = (p.desc || '').split('|')[0].trim();
         const _forma = (p.forma || '').toLowerCase();
         const tipo = p.clave ? (p.clave.startsWith('SP') ? 'sp' : p.clave.startsWith('SR') ? 'sr' : p.clave.startsWith('SIT') || p.clave.startsWith('SII') ? 'sit' : 'si') : (_d0.startsWith('SP') ? 'sp' : _d0.startsWith('SR') ? 'sr' : _d0.startsWith('SIT') || _d0.startsWith('SII') ? 'sit' : _forma.includes('oct') ? 'sr' : (_forma.includes('tri') || _forma.includes('pent')) ? 'sp' : 'si');
-        return { p, tipo, esRect, color: esRect ? 'verde' : '', texto: '' };
+        return { p, tipo, esRect, color: esRect ? 'verde' : '', texto: '', escudo: '', flecha: '', escudoNum: '', escudoNum2: '' };
       });
       // Render setup form
       document.getElementById('mod-lista').innerHTML = _modDatos.map((d, i) => {
@@ -5127,6 +5211,28 @@
             <label style="font-size:11px;font-weight:600;color:#666;display:block;margin-bottom:4px">Texto de la señal <span style="font-weight:400;color:#aaa">(una línea por renglón)</span></label>
             <textarea id="mod-txt-${i}" rows="3" placeholder="Ej:&#10;CIUDAD VALLES&#10;Km 12" oninput="modActualizarTexto(${i},this.value)"
               style="width:100%;border:1.5px solid var(--GB);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div style="flex:1;min-width:130px">
+              <label style="font-size:11px;font-weight:600;color:#666;display:block;margin-bottom:4px">Escudo</label>
+              <select onchange="modActualizarEscudo(${i},this.value)" style="width:100%;border:1.5px solid var(--GB);border-radius:6px;padding:7px 8px;font-size:12px;font-family:inherit;outline:none">
+                ${ESCUDO_OPC.map(o => `<option value="${o.v}">${o.n}</option>`).join('')}
+              </select>
+            </div>
+            <div style="width:72px">
+              <label style="font-size:11px;font-weight:600;color:#666;display:block;margin-bottom:4px">N° ruta</label>
+              <input type="text" inputmode="numeric" maxlength="4" placeholder="51" oninput="modActualizarEscNum(${i},this.value)" style="width:100%;border:1.5px solid var(--GB);border-radius:6px;padding:7px 8px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box">
+            </div>
+            <div style="width:82px;display:none" id="mod-escnum2-wrap-${i}">
+              <label style="font-size:11px;font-weight:600;color:#666;display:block;margin-bottom:4px">N° estatal</label>
+              <input type="text" inputmode="numeric" maxlength="4" placeholder="75" oninput="modActualizarEscNum2(${i},this.value)" style="width:100%;border:1.5px solid var(--GB);border-radius:6px;padding:7px 8px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box">
+            </div>
+            <div style="flex:1;min-width:130px">
+              <label style="font-size:11px;font-weight:600;color:#666;display:block;margin-bottom:4px">Flecha</label>
+              <select onchange="modActualizarFlecha(${i},this.value)" style="width:100%;border:1.5px solid var(--GB);border-radius:6px;padding:7px 8px;font-size:12px;font-family:inherit;outline:none">
+                ${FLECHA_OPC.map(o => `<option value="${o.v}">${o.n}</option>`).join('')}
+              </select>
+            </div>
           </div>` : '';
         return `<div style="background:#FAFAFA;border:1.5px solid var(--GB);border-radius:10px;padding:14px">
           <div style="display:flex;gap:14px;align-items:flex-start">
@@ -5150,16 +5256,22 @@
       document.getElementById('modal-modulacion').classList.add('open');
     }
 
-    function modActualizarColor(i, val) {
-      _modDatos[i].color = val;
+    function modRedraw(i) {
+      const d = _modDatos[i];
       const prev = document.getElementById('mod-svg-prev-' + i);
-      if (prev) prev.innerHTML = svgSignal(_modDatos[i].tipo, _modDatos[i].p.clave, _modDatos[i].texto, val, 60);
+      if (prev) prev.innerHTML = svgSignal(d.tipo, d.p.clave, d.texto, d.color || 'verde', 70, { escudo: d.escudo, flecha: d.flecha, escudoNums: [d.escudoNum, d.escudoNum2] });
     }
-    function modActualizarTexto(i, val) {
-      _modDatos[i].texto = val;
-      const prev = document.getElementById('mod-svg-prev-' + i);
-      if (prev) prev.innerHTML = svgSignal(_modDatos[i].tipo, _modDatos[i].p.clave, val, _modDatos[i].color || 'verde', 60);
+    function modActualizarColor(i, val) { _modDatos[i].color = val; modRedraw(i); }
+    function modActualizarTexto(i, val) { _modDatos[i].texto = val; modRedraw(i); }
+    function modActualizarEscudo(i, val) {
+      _modDatos[i].escudo = val;
+      const w2 = document.getElementById('mod-escnum2-wrap-' + i);
+      if (w2) w2.style.display = val === 'FED+EST' ? '' : 'none';
+      modRedraw(i);
     }
+    function modActualizarFlecha(i, val) { _modDatos[i].flecha = val; modRedraw(i); }
+    function modActualizarEscNum(i, val) { _modDatos[i].escudoNum = val; modRedraw(i); }
+    function modActualizarEscNum2(i, val) { _modDatos[i].escudoNum2 = val; modRedraw(i); }
 
     async function generarModulacionPDF() {
       const w = window.open('', '_blank', 'width=950,height=800');
@@ -5171,9 +5283,14 @@
       const cards = _modDatos.map((d, i) => {
         const dim = extraerDim(d.p.desc);
         const poste = extraerPoste(d.p.desc);
-        const svgLarge = svgSignal(d.tipo, d.p.clave, d.texto, d.color || 'verde', 130);
+        const svgLarge = svgSignal(d.tipo, d.p.clave, d.texto, d.color || 'verde', 130, { escudo: d.escudo, flecha: d.flecha, escudoNums: [d.escudoNum, d.escudoNum2] });
         const sigName = d.p.desc.split('|')[0].replace(d.p.clave || '', '').trim();
+        const nums = [d.escudoNum, d.escudoNum2].filter(Boolean).join(' / ');
+        const escNom = ((ESCUDO_OPC.find(o => o.v === d.escudo) || {}).n || '') + (nums ? ' (' + nums + ')' : '');
+        const fleNom = (FLECHA_OPC.find(o => o.v === d.flecha) || {}).n;
         const rows = [['Señal',sigName],['Medida',dim],['Forma',d.p.forma||'—'],['Reflejante',d.p.pel||'—'],['Soporte',poste]];
+        if (d.escudo) rows.push(['Escudo', escNom]);
+        if (d.flecha) rows.push(['Flecha', fleNom]);
         if (d.esRect && d.texto) rows.push(['Leyenda', d.texto.replace(/&/g,'&amp;').replace(/</g,'&lt;')]);
         return `<div style="border:1.5px solid #e2e2e2; border-radius:8px; overflow:hidden; page-break-inside:avoid; background:#fff;">
           <div style="background:#161616; color:#fff; padding:6px 10px; display:flex; justify-content:space-between; align-items:center;">
