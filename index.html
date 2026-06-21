@@ -306,17 +306,22 @@
       display: block
     }
 
-    /* Actividad: tarjeta compacta centrada (no se estira); el fondo alrededor se ve como página */
+    /* Actividad: la tarjeta llena la altura disponible y la lista crece para ocupar el espacio */
     #pnl-act.active {
       display: flex;
       flex-direction: column;
-      align-items: center
+      min-height: 100%
     }
 
     #pnl-act .card {
-      width: 100%;
-      max-width: 1100px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
       margin-bottom: 0
+    }
+
+    #pnl-act #act-lista {
+      flex: 1
     }
 
     .card {
@@ -3090,54 +3095,54 @@
         </div>
       </div>
 
+      <!-- ACTIVIDAD (solo admin) -->
+      <div class="pnl" id="pnl-act">
+        <div class="card">
+          <div class="card-title"
+            style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span>📜 Registro de actividad</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-az" onclick="exportarActividad()" style="font-size:12px">⬇ CSV</button>
+              <button class="btn btn-n" onclick="renderActividad()" style="font-size:12px">↻ Actualizar</button>
+            </div>
+          </div>
+          <div id="act-cloud-warn"
+            style="display:none;background:#FFF3CD;border:1.5px solid #FFC107;border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:12px">
+            ⚠️ <strong>Supabase no configurado</strong> — El registro de actividad requiere Supabase. En modo local no se
+            guarda historial.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
+            <div class="fl" style="margin:0;min-width:160px"><label>Usuario</label>
+              <select id="act-fil-user" onchange="renderActividad()" style="font-size:13px">
+                <option value="">— Todos —</option>
+              </select>
+            </div>
+            <div class="fl" style="margin:0"><label>Desde</label>
+              <input type="date" id="act-fil-desde" onchange="renderActividad()"
+                style="font-size:13px;padding:7px 10px;border:1.5px solid var(--GB);border-radius:6px;font-family:inherit">
+            </div>
+            <div class="fl" style="margin:0"><label>Hasta</label>
+              <input type="date" id="act-fil-hasta" onchange="renderActividad()"
+                style="font-size:13px;padding:7px 10px;border:1.5px solid var(--GB);border-radius:6px;font-family:inherit">
+            </div>
+            <div class="fl" style="margin:0;min-width:180px"><label>Acción</label>
+              <select id="act-fil-tipo" onchange="renderActividad()" style="font-size:13px">
+                <option value="">— Todas —</option>
+                <option value="sesión">Sesión</option>
+                <option value="cotización">Cotizaciones</option>
+                <option value="precio">Precios / MP</option>
+                <option value="usuario">Usuarios</option>
+                <option value="cliente">Clientes</option>
+              </select>
+            </div>
+          </div>
+          <div id="act-lista"></div>
+        </div>
+      </div>
     </div>
   </div>
 
 
-  <!-- ACTIVIDAD (solo admin) -->
-  <div class="pnl" id="pnl-act">
-    <div class="card">
-      <div class="card-title"
-        style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <span>📜 Registro de actividad</span>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-az" onclick="exportarActividad()" style="font-size:12px">⬇ CSV</button>
-          <button class="btn btn-n" onclick="renderActividad()" style="font-size:12px">↻ Actualizar</button>
-        </div>
-      </div>
-      <div id="act-cloud-warn"
-        style="display:none;background:#FFF3CD;border:1.5px solid #FFC107;border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:12px">
-        ⚠️ <strong>Supabase no configurado</strong> — El registro de actividad requiere Supabase. En modo local no se
-        guarda historial.
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
-        <div class="fl" style="margin:0;min-width:160px"><label>Usuario</label>
-          <select id="act-fil-user" onchange="renderActividad()" style="font-size:13px">
-            <option value="">— Todos —</option>
-          </select>
-        </div>
-        <div class="fl" style="margin:0"><label>Desde</label>
-          <input type="date" id="act-fil-desde" onchange="renderActividad()"
-            style="font-size:13px;padding:7px 10px;border:1.5px solid var(--GB);border-radius:6px;font-family:inherit">
-        </div>
-        <div class="fl" style="margin:0"><label>Hasta</label>
-          <input type="date" id="act-fil-hasta" onchange="renderActividad()"
-            style="font-size:13px;padding:7px 10px;border:1.5px solid var(--GB);border-radius:6px;font-family:inherit">
-        </div>
-        <div class="fl" style="margin:0;min-width:180px"><label>Acción</label>
-          <select id="act-fil-tipo" onchange="renderActividad()" style="font-size:13px">
-            <option value="">— Todas —</option>
-            <option value="sesión">Sesión</option>
-            <option value="cotización">Cotizaciones</option>
-            <option value="precio">Precios / MP</option>
-            <option value="usuario">Usuarios</option>
-            <option value="cliente">Clientes</option>
-          </select>
-        </div>
-      </div>
-      <div id="act-lista"></div>
-    </div>
-  </div>
 
   <!-- MODAL CATÁLOGO -->
   <div class="modal-bg" id="modal-cli-pick" onclick="if(event.target===this)cerrarModal('modal-cli-pick')">
